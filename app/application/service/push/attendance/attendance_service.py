@@ -1,15 +1,18 @@
 import os
-import gspread
+from gspread import service_account_from_dict, Worksheet
+from typing import Type, TypeVar
+from dataclasses import fields
 from abc import abstractmethod
-from functools import cached_property
 from dotenv import load_dotenv
 
 from app.adapter.output.slack import SlackClient
 
+T = TypeVar("T")
+
 
 load_dotenv()
 
-gc = gspread.service_account_from_dict(
+gc = service_account_from_dict(
     {
         "type": "service_account",
         "project_id": os.getenv("PROJECT_ID"),
@@ -26,8 +29,8 @@ gc = gspread.service_account_from_dict(
 )
 
 
-class Checker:
-    def __init__(self):
+class AttendanceService:
+    def __init__(self) -> None:
         if not os.getenv("SHEETS_ID"):
             raise ValueError("SHEETS_ID is not set")
         if not os.getenv("GEULTTO_SLACK_TOKEN"):
@@ -36,20 +39,36 @@ class Checker:
         self.slack = SlackClient(os.getenv("GEULTTO_SLACK_TOKEN"))
         self.sheets = gc.open_by_key(os.getenv("SHEETS_ID"))
 
-    @abstractmethod
-    def check(self):
-        pass
-
     @property
-    def sheet(self):
+    def sheet(self) -> Worksheet:
         if not hasattr(self, "sheet_title") or self.sheet_title is None:
             raise ValueError("sheet_title is not set")
         return self.sheets.worksheet(self.sheet_title)
 
-    def get_sheet_records(self):
-        return self.sheet.get_all_records()
+    @abstractmethod
+    def check(self) -> None:
+        pass
 
-    def update_members(self):
+    @classmethod
+    def convert_records_to_models(
+        cls, records: list[dict[str, object]], model: Type[T]
+    ) -> list[T]:
+        return [
+            model(
+                **{
+                    k: v
+                    for k, v in record.items()
+                    if k in {f.name for f in fields(model)}
+                }
+            )
+            for record in records
+        ]
+
+    def get_sheet_records_to(self, model: Type[T]) -> list[T]:
+        records = self.sheet.get_all_records()
+        return self.convert_records_to_models(records, model)
+
+    def update_members(self) -> None:
         if not hasattr(self, "slack_channel_id") or self.slack_channel_id is None:
             raise ValueError("slack_channel_id is not set")
 
