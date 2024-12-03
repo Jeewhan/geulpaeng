@@ -4,7 +4,7 @@ from datetime import datetime
 
 from app.application.service.push.attendance.attendance_service import AttendanceService
 from app.domain.model.push import Channel, MincedGarlicAttendanceRecord
-from app.domain.util.datetime_helper import DatetimeHelper
+from app.domain.util.datetime_helper import KST, DatetimeHelper
 
 
 class 다진마늘(AttendanceService):
@@ -47,7 +47,7 @@ class 다진마늘(AttendanceService):
         ]
 
     def get_bot_message_timestamps(self) -> list[str]:
-        november_first = datetime(year=datetime.now().year, month=11, day=1)
+        november_first = datetime(year=2024, month=11, day=1, tzinfo=KST)
 
         oldest = str(int(self.get_start_of_month(november_first).timestamp()))
         latest = str(int(self.get_end_of_month().timestamp()))
